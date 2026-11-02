@@ -9,7 +9,6 @@
 // events, head bump fenced by the epoch inside the write. Every checkpoint
 // carries an HMAC that is verified before it is restored, and a metrics
 // record. Mailbox events are deduplicated by (sender, seq) high-water mark.
-import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, writeFileSync, readFileSync, appendFileSync, existsSync, readdirSync, statSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { createHash, createHmac, randomBytes } from "node:crypto";
@@ -20,8 +19,9 @@ export class Tampered extends Error {}
 const sha = (b) => createHash("sha256").update(b).digest("base64url").slice(0, 22);
 
 export class Store {
-  constructor(sqlitePath, coldDir) {
-    this.db = new DatabaseSync(sqlitePath);
+  /** `db` injects a DatabaseSync-shaped handle (exec, prepare → get/all/run, close) for runtimes without node:sqlite, such as Bun over bun:sqlite. */
+  constructor(sqlitePath, coldDir, { db } = {}) {
+    this.db = db ?? Store.openNodeSqlite(sqlitePath);
     this.path = sqlitePath;
     this.db.exec(`
       PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;
@@ -72,6 +72,11 @@ export class Store {
       bodyBytes: p("SELECT COALESCE(SUM(LENGTH(body)),0) AS b, COUNT(*) AS n FROM bodies"),
       metrics: p("SELECT seq, kind, size, metrics FROM checkpoints WHERE agent = ? ORDER BY seq"),
     };
+  }
+
+  static openNodeSqlite(path) {
+    const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
+    return new DatabaseSync(path);
   }
 
   mac(bytes) { return createHmac("sha256", this.key).update(bytes).digest("hex"); }
