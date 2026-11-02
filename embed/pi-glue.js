@@ -26,7 +26,9 @@
 "use strict";
 (() => {
   const HARNESS_VERSION = 102;
-  const POOL = 2;
+  // One script context: the heap is a kernel, so top-level variables, functions and classes a script
+  // defines stay defined for every later script (upstream heappi alternates between two contexts).
+  const POOL = 1;
   const HANDLE_THRESHOLD = 1024;
   const DEFER_OVER = 8; // catalogs larger than this load their MCP tools on demand
   const { BACKGROUND_CONTEXT, createModels, fauxProvider, Type, createRegistry, defineExtension, defineTool, Harness, MemoryStorage, createToolSearchExtension } = PI;
